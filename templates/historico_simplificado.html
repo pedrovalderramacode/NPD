@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRODUÇÃO - OF-Refugo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/historico.css') }}">
+    <style>
+        /* Cor laranja pastel clarinho para cabeçalhos específicos */
+        th[data-column="refugo_flexo_kg"],
+        th[data-column="refugo_sos_kg"],
+        th:has(a:contains("Refugo Flexo (kg)")),
+        th:has(a:contains("Refugo SOS (kg)")),
+        th:has(a:contains("Consumo Total (kg)")) {
+            background-color: #ffeaa7 !important;
+        }
+        /* Para navegadores que não suportam :has, usar atributo data */
+        th[data-header-color="orange"] {
+            background-color: #ffeaa7 !important;
+        }
+        /* Cabeçalhos com cálculo: cursor de ajuda e tooltip ao passar o mouse */
+        th[data-column="refugo_flexo_kg"],
+        th[data-column="refugo_sos_kg"],
+        th[data-column="consumo_total"],
+        th[data-column="pct_refugo_pedido"] {
+            cursor: help;
+        }
+        /* Refugo Geral Peças: verde igual Qtde Comanda (somente OF-Refugo) */
+        th[data-column="perdas_geral"],
+        th[data-column="pct_refugo_pedido"] {
+            background-color: #d4edda !important;
+        }
+        /* Qtde Comanda e Qtde Inspeção Final: verde igual Data Inspeção Final (somente OF-Refugo) */
+        th[data-column="quantidade_comanda"],
+        th[data-column="quantidade_inspecao_geral"] {
+            background-color: #d4edda !important;
+        }
+        /* Refugo Robô (peças) e Refugo Inspeção Final (peças): mesma cor que Refugo Produção (peças) - somente OF-Refugo */
+        th[data-column="refugo_robo"],
+        th[data-column="refugo_inspecao_final"] {
+            background-color: #d1ecf1 !important;
+        }
+        /* Porcentagem de Refugo Pedido: cores por faixa */
+        .tabela td.pct-refugo-verde { background-color: #d4edda !important; }
+        .tabela td.pct-refugo-azul { background-color: #cce5ff !important; }
+        .tabela td.pct-refugo-amarelo { background-color: #fff9c4 !important; }
+        .tabela td.pct-refugo-vermelho { background-color: #f8d7da !important; }
+        /* Legenda Porcentagem de Refugo Pedido */
+        .pct-legend { display: inline-flex; flex-shrink: 0; margin-left: 8px; }
+        .pct-legend-table { border-collapse: collapse; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 4px; overflow: hidden; }
+        .pct-legend-table th { background: #366092; color: #fff; padding: 4px 10px; text-align: center; white-space: nowrap; }
+        .pct-legend-table td { padding: 3px 8px; text-align: center; border: 1px solid rgba(0,0,0,0.08); white-space: nowrap; color: #333; }
+        .pct-legend-table .pct-leg-verde { background: #d4edda; }
+        .pct-legend-table .pct-leg-azul { background: #cce5ff; }
+        .pct-legend-table .pct-leg-amarelo { background: #fff9c4; }
+        .pct-legend-table .pct-leg-vermelho { background: #f8d7da; }
+        /* Sem margem branca à esquerda e sem espaço acima da tabela (OF-Refugo) */
+        .of-refugo-table-card { padding-left: 0 !important; padding-top: 0 !important; }
+        .of-refugo-table-card .tabela { margin-top: 0; padding-top: 0; }
+    </style>
+</head>
+<body>
+  <div id="filter-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Filtros Avançados</h2>
+        <button class="modal-close" onclick="document.getElementById('filter-modal').style.display='none'">&times;</button>
+      </div>
+      <form id="filter-form" method="get" action="{{ action_url }}">
+        <div class="modal-body">
+          <div class="filter-group" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+            <div>
+              <label>Serviço:</label>
+              <input type="text" name="servico" value="{{ request.args.get('servico', '') }}" placeholder="Digite parte do nome do serviço" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%;">
+            </div>
+            <div>
+              <label>Nº de OF:</label>
+              <input type="text" name="num_of" value="{{ request.args.get('num_of', '') }}" placeholder="Digite o Nº de OF" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%;">
+            </div>
+            <div>
+              <label>Número de Pedido:</label>
+              <input type="text" name="numero_pedido" value="{{ request.args.get('numero_pedido', '') }}" placeholder="Digite o Nº do pedido" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%;">
+            </div>
+          </div>
+          <div class="filter-group">
+            <label><strong>Data SOS</strong></label>
+            <label style="font-weight: normal; margin-top: 5px; font-size: 12px;">Período SOS (De):</label>
+            <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" style="margin-bottom: 10px;">
+            <label style="font-weight: normal; font-size: 12px;">Período SOS (Até):</label>
+            <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+          </div>
+          <div class="filter-group">
+            <label><strong>Data Inspeção Final</strong></label>
+            <label style="font-weight: normal; margin-top: 5px; font-size: 12px;">Período Inspeção Final (De):</label>
+            <input type="date" name="start_date_inspecao" value="{{ request.args.get('start_date_inspecao', '') }}" style="margin-bottom: 10px;">
+            <label style="font-weight: normal; font-size: 12px;">Período Inspeção Final (Até):</label>
+            <input type="date" name="end_date_inspecao" value="{{ request.args.get('end_date_inspecao', '') }}">
+          </div>
+          <div class="filter-group">
+            <label>Operador:</label>
+            <div class="checkbox-container">
+              {% for op in all_operadores %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="operadores" value="{{ op }}" {% if op in request.args.getlist('operadores') %}checked{% endif %}> {{ op }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>SOS:</label>
+            <div class="checkbox-container">
+              {% set sos_options = ['SOS 1', 'SOS 2', 'SOS 3'] %}
+              {% for sos_opt in sos_options %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="maquinas" value="{{ sos_opt }}" {% if sos_opt in request.args.getlist('maquinas') %}checked{% endif %}> {{ sos_opt }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('filter-modal').style.display='none'">Fechar</button>
+          <button type="submit" class="btn">Filtrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="container">
+    <div class="header">
+      <div class="header-brand">
+        <a href="{{ url_for('main.index') }}" class="logo">PRODUÇÃO</a>
+        <a href="{{ url_for('relatorio.custo') }}" class="logo logo-link {% if request.endpoint and request.endpoint.startswith(('relatorio', 'custos_papel', 'custos_operacionais')) %}active{% endif %}">Custos</a>
+      </div>
+      <nav class="tabs">
+        <a href="{{ url_for('main.index') }}" class="tab {% if request.endpoint in ['main.index', 'main.duplicar', 'main.lancar', 'main.editar'] %}active{% endif %}">Lançamento</a>
+        <a href="{{ url_for('main.historico') }}" class="tab {% if request.endpoint == 'main.historico' %}active{% endif %}">Histórico</a>
+        <a href="{{ url_for('main.of_refugo') }}" class="tab {% if request.endpoint == 'main.of_refugo' %}active{% endif %}">OF-Refugo</a>
+        <a href="{{ url_for('main.comparacao_quantidade') }}" class="tab {% if request.endpoint == 'main.comparacao_quantidade' %}active{% endif %}">Comparação Quantidade</a>
+        <a href="{{ url_for('main.comparativo_mensal') }}" class="tab {% if request.endpoint == 'main.comparativo_mensal' %}active{% endif %}">Comparativo Mensal</a>
+        <a href="{{ url_for('main.analise') }}" class="tab {% if request.endpoint == 'main.analise' %}active{% endif %}">Análise</a>
+      </nav>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+    <script>
+      (function() {
+          const alerts = document.querySelectorAll('.alert');
+          alerts.forEach(function(alert) {
+              setTimeout(function() {
+                  alert.style.transition = 'opacity 0.5s ease-out';
+                  alert.style.opacity = '0';
+                  setTimeout(function() {
+                      alert.remove();
+                  }, 500);
+              }, 500);
+          });
+      })();
+    </script>
+    <div class="card">
+        <div class="filter-controls">
+            <div class="filter-controls-left">
+                <button class="btn btn-secondary" onclick="document.getElementById('filter-modal').style.display='flex'">Filtros Avançados</button>
+                <a href="{{ url_for('main.of_refugo') }}" class="btn btn-icon btn-warning" title="Limpar Filtros"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5Zm-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5ZM4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5Z"/></svg></a>
+                <div class="pct-legend">
+                    <table class="pct-legend-table">
+                        <tr><th colspan="2">Porcentagem de Refugo Pedido</th></tr>
+                        <tr><td class="pct-leg-verde">≤ 3%</td><td class="pct-leg-azul">&gt; 3% e &lt; 5%</td></tr>
+                        <tr><td class="pct-leg-amarelo">≥ 5% e &lt; 10%</td><td class="pct-leg-vermelho">≥ 10%</td></tr>
+                    </table>
+                </div>
+            </div>
+            <h2 class="card-title-center">OF-Refugo</h2>
+            <a href="{{ url_for('main.of_refugo', export='excel', **preserved_args) }}" class="btn btn-success">Exportar Excel</a>
+        </div>
+    </div>
+    <div class="table-responsive card of-refugo-table-card">
+        <table class="tabela">
+            <thead>
+                <tr>
+                {% if lancamentos %}
+                    {% set column_order = ['num_of', 'servico', 'numero_pedido', 'data_inspecao', 'quantidade_comanda', 'quantidade_inspecao_geral', 'perdas_geral', 'pct_refugo_pedido', 'perdas_un', 'refugo_robo', 'refugo_inspecao_final', 'refugo_flexo_kg', 'refugo_sos_kg', 'consumo_total'] %}
+                    {% set sticky_left_cols = ['num_of', 'servico'] %}
+                    {% for key in column_order %}
+                        {% if key in lancamentos[0] %}
+                        {% set header_title = none %}
+                        {% if key == 'refugo_flexo_kg' %}{% set header_title = 'Cálculo: Refugo Acerto Flexo + Refugo Flexo + Refugo Pré-Impresso' %}{% endif %}
+                        {% if key == 'refugo_sos_kg' %}{% set header_title = 'Cálculo: Refugo Acerto SOS + Refugo SOS' %}{% endif %}
+                        {% if key == 'consumo_total' %}{% set header_title = 'Cálculo: Consumo Util + Refugo Produção Total' %}{% endif %}
+                        {% if key == 'pct_refugo_pedido' %}{% set header_title = 'Cálculo: (Refugo Geral Peças ÷ Qtde Inspeção Final) × 100' %}{% endif %}
+                        <th data-column="{{ key }}" {% if key in ['refugo_flexo_kg', 'refugo_sos_kg', 'consumo_total'] %}data-header-color="orange"{% endif %} {% if key == 'pct_refugo_pedido' %}data-header-color="green"{% endif %} {% if key in sticky_left_cols %}class="sticky-left"{% endif %}{% if header_title %} title="{{ header_title }}"{% endif %}><a href="{{ url_for('main.of_refugo', sort_by=key, sort_order='desc' if request.args.get('sort_by') == key and request.args.get('sort_order') == 'asc' else 'asc', **preserved_args) }}"{% if header_title %} title="{{ header_title }}"{% endif %}>
+                            {% if key == 'num_of' %}Nº OF
+                            {% elif key == 'numero_pedido' %}Número do Pedido
+                            {% elif key == 'data_inspecao' %}Data Inspeção Final
+                            {% elif key == 'quantidade_comanda' %}Qtde Comanda
+                            {% elif key == 'quantidade_inspecao_geral' %}Qtde Inspeção Final
+                            {% elif key == 'perdas_un' %}Refugo Produção (peças)
+                            {% elif key == 'refugo_robo' %}Refugo Robo (peças)
+                            {% elif key == 'refugo_inspecao_final' %}Refugo Inspeção Final (peças)
+                            {% elif key == 'perdas_geral' %}Refugo Geral Peças
+                            {% elif key == 'pct_refugo_pedido' %}<span data-header-color="green">Porcentagem de Refugo Pedido</span>
+                            {% elif key == 'refugo_flexo_kg' %}<span data-header-color="orange">Refugo Flexo (kg)</span>
+                            {% elif key == 'refugo_sos_kg' %}<span data-header-color="orange">Refugo SOS (kg)</span>
+                            {% elif key == 'consumo_total' %}<span data-header-color="orange">Consumo Total (kg)</span>
+                            {% else %}{{ key|replace('_', ' ')|capitalize }}
+                            {% endif %}</a></th>
+                        {% endif %}
+                    {% endfor %}
+                    <th class="th-actions">Ações</th>
+                {% else %}<th>Nenhum dado para exibir</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for lancamento in lancamentos %}
+                <tr>
+                    {% set sticky_left_cols = ['num_of', 'servico'] %}
+                    {% for key in column_order %}
+                        {% if key in lancamento %}
+                        {% set pct_class = '' %}
+                        {% if key == 'pct_refugo_pedido' and lancamento[key] is not none %}
+                            {% set v = lancamento[key]|float %}
+                            {% if v >= 10 %}{% set pct_class = 'pct-refugo-vermelho' %}
+                            {% elif v >= 5 %}{% set pct_class = 'pct-refugo-amarelo' %}
+                            {% elif v > 3 %}{% set pct_class = 'pct-refugo-azul' %}
+                            {% else %}{% set pct_class = 'pct-refugo-verde' %}
+                            {% endif %}
+                        {% endif %}
+                        <td {% if key in sticky_left_cols %}class="sticky-left {{ pct_class }}"{% elif pct_class %}class="{{ pct_class }}"{% endif %} {% if key in sticky_left_cols %}data-column="{{ key }}"{% endif %}>
+                            {% if key in ['data_inspecao'] and lancamento[key] is not none %}
+                                {% set val_str = (lancamento[key]|string).strip() %}
+                                {% if '-' in val_str and val_str.count('-') >= 2 %}
+                                    {% set parts = val_str.split('-') %}
+                                    {{ "%s/%s/%s"|format(parts[2], parts[1], parts[0]) }}
+                                {% else %}
+                                    {{ lancamento[key] }}
+                                {% endif %}
+                            {% elif key == 'numero_pedido' and lancamento[key] is not none %}
+                                {{ "%.0f"|format(lancamento[key]|float) }}
+                            {% elif key in ['perdas_un', 'refugo_robo', 'refugo_inspecao_final', 'perdas_geral', 'quantidade_comanda', 'quantidade_inspecao_geral'] and lancamento[key] is not none %}
+                                {{ "%.0f"|format(lancamento[key]|float) }}
+                            {% elif key == 'pct_refugo_pedido' and lancamento[key] is not none %}
+                                {{ "%.2f"|format(lancamento[key]|float) }}%
+                            {% elif key in ['refugo_flexo_kg', 'refugo_sos_kg', 'consumo_total'] and lancamento[key] is not none %}
+                                {{ "%.2f"|format(lancamento[key]|float) }}
+                            {% else %}
+                                {{ lancamento[key] if lancamento[key] is not none else '' }}
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    {% endfor %}
+                    <td class="actions-cell">
+                        <a href="{{ url_for('main.editar', id=lancamento.id) }}" class="btn-acao btn-editar" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></a>
+                        <form action="{{ url_for('main.excluir', id=lancamento.id) }}" method="post" onsubmit="return confirm('Tem certeza?');" style="display:inline;"><button type="submit" class="btn-acao btn-excluir" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="12">Nenhum registro encontrado.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const table = document.querySelector('.tabela');
+        if (table) {
+            const thead = table.querySelector('thead tr');
+            if (thead) {
+                const headers = Array.from(thead.querySelectorAll('th'));
+                let numOfIndex = -1;
+                let servicoIndex = -1;
+                
+                headers.forEach((th, index) => {
+                    const col = th.getAttribute('data-column');
+                    if (col === 'num_of') numOfIndex = index;
+                    if (col === 'servico') servicoIndex = index;
+                });
+                
+                if (numOfIndex >= 0) {
+                    let leftPosition = 0;
+                    for (let i = 0; i < numOfIndex; i++) {
+                        const th = headers[i];
+                        if (th) {
+                            const rect = th.getBoundingClientRect();
+                            leftPosition += rect.width;
+                        }
+                    }
+                    const numOfCells = table.querySelectorAll('th[data-column="num_of"].sticky-left, td.sticky-left[data-column="num_of"]');
+                    numOfCells.forEach(cell => {
+                        cell.style.left = leftPosition + 'px';
+                    });
+                }
+                
+                if (servicoIndex >= 0) {
+                    let leftPosition = 0;
+                    for (let i = 0; i < servicoIndex; i++) {
+                        const th = headers[i];
+                        if (th) {
+                            const rect = th.getBoundingClientRect();
+                            leftPosition += rect.width;
+                        }
+                    }
+                    const servicoCells = table.querySelectorAll('th[data-column="servico"].sticky-left, td.sticky-left[data-column="servico"]');
+                    servicoCells.forEach(cell => {
+                        cell.style.left = leftPosition + 'px';
+                    });
+                }
+            }
+        }
+    });
+  </script>
+</body>
+</html>

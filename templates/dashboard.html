@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRODUÇÃO - Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+  <div id="filter-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Filtros Avançados</h2>
+        <button class="modal-close" onclick="document.getElementById('filter-modal').style.display='none'">&times;</button>
+      </div>
+      <form id="filter-form" method="get" action="{{ action_url }}">
+        <div class="modal-body">
+          <div class="filter-group">
+            <label>Período (De):</label>
+            <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+          </div>
+          <div class="filter-group">
+            <label>Período (Até):</label>
+            <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+          </div>
+          <div class="filter-group">
+            <label>Operador:</label>
+            <div class="checkbox-container">
+              {% for op in all_operadores %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="operadores" value="{{ op }}" {% if op in request.args.getlist('operadores') %}checked{% endif %}> {{ op }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>SOS:</label>
+            <div class="checkbox-container">
+              {% set sos_options = ['SOS 1', 'SOS 2', 'SOS 3'] %}
+              {% for sos_opt in sos_options %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="maquinas" value="{{ sos_opt }}" {% if sos_opt in request.args.getlist('maquinas') %}checked{% endif %}> {{ sos_opt }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Tipo de Impressão:</label>
+            <div class="checkbox-container">
+              {% set tipos_impressao = ['Pré-Impresso', 'SOS', 'Impressora'] %}
+              {% for tipo in tipos_impressao %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="tipos_impressao" value="{{ tipo }}" {% if tipo in request.args.getlist('tipos_impressao') %}checked{% endif %}> {{ tipo }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('filter-modal').style.display='none'">Fechar</button>
+          <button type="submit" class="btn">Filtrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="chart-zoom-modal" class="modal-overlay" onclick="closeChartModal()">
+    <div id="chart-zoom-modal-content" class="modal-content" onclick="event.stopPropagation()">
+        <img id="modal-chart-img" src="">
+    </div>
+  </div>
+  <div class="container">
+    <div class="header">
+      <div class="header-brand">
+        <a href="{{ url_for('main.index') }}" class="logo">PRODUÇÃO</a>
+        <a href="{{ url_for('relatorio.custo') }}" class="logo logo-link {% if request.endpoint and request.endpoint.startswith(('relatorio', 'custos_papel', 'custos_operacionais')) %}active{% endif %}">Custos</a>
+      </div>
+      <nav class="tabs">
+        <a href="{{ url_for('main.index') }}" class="tab {% if request.endpoint in ['main.index', 'main.duplicar', 'main.lancar', 'main.editar'] %}active{% endif %}">Lançamento</a>
+        <a href="{{ url_for('main.historico') }}" class="tab {% if request.endpoint == 'main.historico' %}active{% endif %}">Histórico</a>
+        <a href="{{ url_for('main.dashboard') }}" class="tab {% if request.endpoint == 'main.dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('main.analise') }}" class="tab {% if request.endpoint == 'main.analise' %}active{% endif %}">Análise</a>
+      </nav>
+    </div>
+    <div class="card">
+         <div class="filter-controls">
+            <button class="btn btn-secondary" onclick="document.getElementById('filter-modal').style.display='flex'">Filtros Avançados</button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-icon btn-warning" title="Limpar Filtros"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5Zm-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5ZM4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5Z"/></svg></a>
+        </div>
+    </div>
+    {% if not charts or charts|selectattr('img')|list|length == 0 %}
+        <div class="card"><p>Nenhum dado encontrado para o período e filtros selecionados.</p></div>
+    {% else %}
+        <div class="dashboard-grid">
+          {% for chart in charts %}{% if chart.img %}
+            <div class="card chart-container" onclick="openChartModal('data:image/png;base64,{{ chart.img }}')">
+                <img src="data:image/png;base64,{{ chart.img }}">
+            </div>
+          {% endif %}{% endfor %}
+        </div>
+    {% endif %}
+  </div>
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html> 

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRODUÇÃO - Histórico</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/historico.css') }}">
+    <style>
+        /* Cabeçalhos com cálculo: cursor de ajuda ao passar o mouse */
+        .tabela th[data-column="refugo_robo_kg"],
+        .tabela th[data-column="refugo_inspecao_final_kg"],
+        .tabela th[data-column="consumo_total"],
+        .tabela th[data-column="refugo_pct"],
+        .tabela th[data-column="refugo_pct_flexo"],
+        .tabela th[data-column="eficiencia_pct"],
+        .tabela th[data-column="tempo_acerto_s"],
+        .tabela th[data-column="tempo_prod_s"],
+        .tabela th[data-column="tempo_acerto_impressora"],
+        .tabela th[data-column="tempo_prod_impressora"],
+        .tabela th[data-column="velocidade_un_min"],
+        .tabela th[data-column="velocidade_un_min_flexo"],
+        .tabela th[data-column="perdas_geral_kg"],
+        .tabela th[data-column="refugo_producao_total"] { cursor: help; }
+        /* Cabeçalho azul suave da primeira coluna até Quantidade Comanda */
+        .tabela th.header-azul { background-color: #a8c5e8; color: #1a365d; }
+        .tabela th.header-azul a { color: #1a365d; }
+        /* Nº OF e Serviço (sticky): mesma cor que as demais colunas até Quantidade Comanda */
+        .tabela th.sticky-left.header-azul { background-color: #a8c5e8 !important; color: #1a365d; }
+        .tabela th.sticky-left.header-azul a { color: #1a365d; }
+        /* Cabeçalho verde suave da coluna Impressora até Fim Produção Impressora */
+        .tabela th.header-verde { background-color: #a8d5b0; color: #1a3d1f; }
+        .tabela th.header-verde a { color: #1a3d1f; }
+        /* Cabeçalho ciano suave da coluna SOS até Fim Produção SOS */
+        .tabela th.header-ciano { background-color: #a3d4d4; color: #0d3d3d; }
+        .tabela th.header-ciano a { color: #0d3d3d; }
+        /* Cabeçalho laranja suave da coluna Refugo Produção (Peças) até Consumo Total */
+        .tabela th.header-laranja { background-color: #e8c4a0; color: #4a2c0a; }
+        .tabela th.header-laranja a { color: #4a2c0a; }
+        /* Sem margem branca à esquerda antes da coluna Nº OF */
+        .historico-table-card { padding-left: 0 !important; }
+        /* Sem espaço acima da tabela */
+        .historico-table-card .tabela { margin-top: 0; padding-top: 0; }
+    </style>
+</head>
+<body>
+  <div id="filter-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Filtros Avançados</h2>
+        <button class="modal-close" onclick="document.getElementById('filter-modal').style.display='none'">&times;</button>
+      </div>
+      <form id="filter-form" method="get" action="{{ action_url }}">
+        <div class="modal-body">
+          <div class="filter-group" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label>Serviço:</label>
+              <input type="text" name="servico" value="{{ request.args.get('servico', '') }}" placeholder="Digite parte do nome do serviço" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%;">
+            </div>
+            <div>
+              <label>Nº de OF:</label>
+              <input type="text" name="num_of" value="{{ request.args.get('num_of', '') }}" placeholder="Digite o Nº de OF" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%;">
+            </div>
+          </div>
+          <div class="filter-group">
+            <label><strong>Data SOS</strong></label>
+            <label style="font-weight: normal; margin-top: 5px; font-size: 12px;">Período SOS (De):</label>
+            <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" style="margin-bottom: 10px;">
+            <label style="font-weight: normal; font-size: 12px;">Período SOS (Até):</label>
+            <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+          </div>
+          <div class="filter-group">
+            <label><strong>Data Impressora</strong></label>
+            <label style="font-weight: normal; margin-top: 5px; font-size: 12px;">Período Impressora (De):</label>
+            <input type="date" name="start_date_impressora" value="{{ request.args.get('start_date_impressora', '') }}" style="margin-bottom: 10px;">
+            <label style="font-weight: normal; font-size: 12px;">Período Impressora (Até):</label>
+            <input type="date" name="end_date_impressora" value="{{ request.args.get('end_date_impressora', '') }}">
+          </div>
+          <div class="filter-group">
+            <label><strong>Data Robô</strong></label>
+            <label style="font-weight: normal; margin-top: 5px; font-size: 12px;">Período Robô (De):</label>
+            <input type="date" name="start_date_robo" value="{{ request.args.get('start_date_robo', '') }}" style="margin-bottom: 10px;">
+            <label style="font-weight: normal; font-size: 12px;">Período Robô (Até):</label>
+            <input type="date" name="end_date_robo" value="{{ request.args.get('end_date_robo', '') }}">
+          </div>
+          <div class="filter-group">
+            <label><strong>Data Inspeção</strong></label>
+            <label style="font-weight: normal; margin-top: 5px; font-size: 12px;">Período Inspeção (De):</label>
+            <input type="date" name="start_date_inspecao" value="{{ request.args.get('start_date_inspecao', '') }}" style="margin-bottom: 10px;">
+            <label style="font-weight: normal; font-size: 12px;">Período Inspeção (Até):</label>
+            <input type="date" name="end_date_inspecao" value="{{ request.args.get('end_date_inspecao', '') }}">
+          </div>
+          <div class="filter-group">
+            <label>Operador:</label>
+            <div class="checkbox-container">
+              {% for op in all_operadores %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="operadores" value="{{ op }}" {% if op in request.args.getlist('operadores') %}checked{% endif %}> {{ op }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>SOS:</label>
+            <div class="checkbox-container">
+              {% set sos_options = ['SOS 1', 'SOS 2', 'SOS 3'] %}
+              {% for sos_opt in sos_options %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="maquinas" value="{{ sos_opt }}" {% if sos_opt in request.args.getlist('maquinas') %}checked{% endif %}> {{ sos_opt }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Tipo de Impressão:</label>
+            <div class="checkbox-container">
+              {% set tipos_impressao = ['Pré-Impresso', 'SOS', 'Impressora'] %}
+              {% for tipo in tipos_impressao %}
+              <label class="checkbox-item">
+                <input type="checkbox" name="tipos_impressao" value="{{ tipo }}" {% if tipo in request.args.getlist('tipos_impressao') %}checked{% endif %}> {{ tipo }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('filter-modal').style.display='none'">Fechar</button>
+          <button type="submit" class="btn">Filtrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="container">
+    <div class="header">
+      <div class="header-brand">
+        <a href="{{ url_for('main.index') }}" class="logo">PRODUÇÃO</a>
+        <a href="{{ url_for('relatorio.custo') }}" class="logo logo-link {% if request.endpoint and request.endpoint.startswith(('relatorio', 'custos_papel', 'custos_operacionais')) %}active{% endif %}">Custos</a>
+      </div>
+      <nav class="tabs">
+        <a href="{{ url_for('main.index') }}" class="tab {% if request.endpoint in ['main.index', 'main.duplicar', 'main.lancar', 'main.editar'] %}active{% endif %}">Lançamento</a>
+        <a href="{{ url_for('main.historico') }}" class="tab {% if request.endpoint == 'main.historico' %}active{% endif %}">Histórico</a>
+        <a href="{{ url_for('main.of_refugo') }}" class="tab {% if request.endpoint == 'main.of_refugo' %}active{% endif %}">OF-Refugo</a>
+        <a href="{{ url_for('main.comparacao_quantidade') }}" class="tab {% if request.endpoint == 'main.comparacao_quantidade' %}active{% endif %}">Comparação Quantidade</a>
+        <a href="{{ url_for('main.comparativo_mensal') }}" class="tab {% if request.endpoint == 'main.comparativo_mensal' %}active{% endif %}">Comparativo Mensal</a>
+        <a href="{{ url_for('main.analise') }}" class="tab {% if request.endpoint == 'main.analise' %}active{% endif %}">Análise</a>
+      </nav>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+    <script>
+      // Faz as mensagens flash desaparecerem após 0.5 segundos (executa imediatamente)
+      (function() {
+          const alerts = document.querySelectorAll('.alert');
+          alerts.forEach(function(alert) {
+              setTimeout(function() {
+                  alert.style.transition = 'opacity 0.5s ease-out';
+                  alert.style.opacity = '0';
+                  setTimeout(function() {
+                      alert.remove();
+                  }, 500);
+              }, 500);
+          });
+      })();
+    </script>
+    <div class="card">
+        <div class="filter-controls">
+            <div class="filter-controls-left">
+                <button class="btn btn-secondary" onclick="document.getElementById('filter-modal').style.display='flex'">Filtros Avançados</button>
+                <a href="{{ url_for('main.historico') }}" class="btn btn-icon btn-warning" title="Limpar Filtros"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5Zm-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5ZM4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5Z"/></svg></a>
+            </div>
+            <h2 class="card-title-center">Histórico de Produção</h2>
+            <a href="{{ url_for('main.historico', export='excel', **preserved_args) }}" class="btn btn-success">Exportar Excel</a>
+        </div>
+    </div>
+    <div class="table-responsive card historico-table-card">
+        <table class="tabela">
+            <thead>
+                <tr>
+                {% if lancamentos %}
+                    {% set header_azul_cols = ['num_of', 'servico', 'numero_pedido', 'papel', 'formato', 'tipo', 'qtd_cliches', 'milheiro', 'quantidade_comanda'] %}
+                    {% set header_verde_cols = ['impressora', 'data_impressora', 'operador_impressora', 'quantidade_impressora', 'refugo_acerto_flexo', 'refugo_flexo', 'refugo_pre_impresso', 'refugo_pct_flexo', 'velocidade_un_min_flexo', 'tempo_acerto_impressora', 'tempo_prod_impressora', 'inicio_acerto_impressora', 'fim_acerto_impressora', 'inicio_prod_impressora', 'fim_prod_impressora'] %}
+                    {% set header_ciano_cols = ['sos', 'data', 'operador', 'quantidade', 'tipo_impressao', 'refugo_acerto_sos', 'refugo_sos', 'refugo_pct', 'velocidade_un_min', 'tempo_acerto_s', 'tempo_prod_s', 'inicio_acerto', 'fim_acerto', 'inicio_prod', 'fim_prod'] %}
+                    {% set header_laranja_cols = ['perdas_un', 'refugo_producao_total', 'consumo_util', 'consumo_total'] %}
+                    {% set column_order = ['num_of', 'servico', 'numero_pedido', 'papel', 'formato', 'tipo', 'qtd_cliches', 'milheiro', 'quantidade_comanda', 'impressora', 'data_impressora', 'operador_impressora', 'quantidade_impressora', 'refugo_acerto_flexo', 'refugo_flexo', 'refugo_pre_impresso', 'refugo_pct_flexo', 'velocidade_un_min_flexo', 'tempo_acerto_impressora', 'tempo_prod_impressora', 'inicio_acerto_impressora', 'fim_acerto_impressora', 'inicio_prod_impressora', 'fim_prod_impressora', 'sos', 'data', 'operador', 'quantidade', 'tipo_impressao', 'refugo_acerto_sos', 'refugo_sos', 'refugo_pct', 'velocidade_un_min', 'tempo_acerto_s', 'tempo_prod_s', 'inicio_acerto', 'fim_acerto', 'inicio_prod', 'fim_prod', 'perdas_un', 'refugo_producao_total', 'consumo_util', 'consumo_total', 'robo_alca', 'data_robo', 'operador_robo', 'quantidade_robo', 'refugo_robo', 'refugo_robo_kg', 'data_inspecao', 'quantidade_inspecao_geral', 'refugo_inspecao_final', 'refugo_inspecao_final_kg', 'perdas_geral', 'perdas_geral_kg', 'observacoes', 'inicio_prod_2', 'fim_prod_2', 'eficiencia_pct'] %}
+                    {% set sticky_left_cols = ['num_of', 'servico'] %}
+                    {% for key in column_order %}
+                        {% if key in lancamentos[0] %}
+                        {% set header_title = none %}
+                        {% if key == 'refugo_robo_kg' %}{% set header_title = 'Cálculo: Refugo Robô (peças) × (Peso Milheiro ÷ 1000)' %}{% endif %}
+                        {% if key == 'refugo_inspecao_final_kg' %}{% set header_title = 'Cálculo: Refugo Inspeção Final (peças) × (Peso Milheiro ÷ 1000)' %}{% endif %}
+                        {% if key == 'consumo_total' %}{% set header_title = 'Cálculo: Consumo Util + Refugo Produção Total' %}{% endif %}
+                        {% if key == 'refugo_producao_total' %}{% set header_title = 'Cálculo: Refugo Flexo + Refugo Pré-Impresso + Refugo SOS + Refugo Acerto Flexo + Refugo Acerto SOS (total em kg)' %}{% endif %}
+                        {% if key == 'refugo_pct' %}{% set header_title = 'Cálculo: (Refugo SOS em kg) ÷ (Peso boas SOS + Refugo SOS) × 100' %}{% endif %}
+                        {% if key == 'refugo_pct_flexo' %}{% set header_title = 'Cálculo: (Refugo Flexo em kg) ÷ (Peso boas Impressora + Refugo Flexo) × 100' %}{% endif %}
+                        {% if key == 'eficiencia_pct' %}{% set header_title = 'Cálculo: Índice composto (velocidade × acerto × refugo) × 100' %}{% endif %}
+                        {% if key == 'tempo_acerto_s' %}{% set header_title = 'Cálculo: Fim Acerto − Início Acerto (SOS), em segundos' %}{% endif %}
+                        {% if key == 'tempo_prod_s' %}{% set header_title = 'Cálculo: (Fim Produção − Início Produção) SOS, em segundos' %}{% endif %}
+                        {% if key == 'tempo_acerto_impressora' %}{% set header_title = 'Cálculo: Fim Acerto − Início Acerto (Impressora), em segundos' %}{% endif %}
+                        {% if key == 'tempo_prod_impressora' %}{% set header_title = 'Cálculo: Fim Produção − Início Produção (Impressora), em segundos' %}{% endif %}
+                        {% if key == 'velocidade_un_min' %}{% set header_title = 'Cálculo: Quantidade SOS ÷ (Tempo Produção SOS em minutos)' %}{% endif %}
+                        {% if key == 'velocidade_un_min_flexo' %}{% set header_title = 'Cálculo: Quantidade Impressora ÷ (Tempo Produção Impressora em minutos)' %}{% endif %}
+                        {% if key == 'perdas_geral_kg' %}{% set header_title = 'Cálculo: Refugo geral em kg (peso por unidade × refugo geral peças)' %}{% endif %}
+                        <th data-column="{{ key }}" class="{% if key in header_azul_cols %}header-azul {% endif %}{% if key in header_verde_cols %}header-verde {% endif %}{% if key in header_ciano_cols %}header-ciano {% endif %}{% if key in header_laranja_cols %}header-laranja {% endif %}{% if key in sticky_left_cols %}sticky-left{% endif %}"{% if header_title %} title="{{ header_title }}"{% endif %}><a href="{{ url_for('main.historico', sort_by=key, sort_order='desc' if request.args.get('sort_by') == key and request.args.get('sort_order') == 'asc' else 'asc', **preserved_args) }}"{% if header_title %} title="{{ header_title }}"{% endif %}>
+                            {% if key == 'numero_pedido' %}Número do Pedido
+                            {% elif key == 'num_of' %}Nº OF
+                            {% elif key == 'operador' %}Operador SOS
+                            {% elif key == 'operador_impressora' %}Operador Impressora
+                            {% elif key == 'operador_robo' %}Operador Robo
+                            {% elif key == 'quantidade' %}Quantidade SOS
+                            {% elif key == 'quantidade_impressora' %}Quantidade Impressora
+                            {% elif key == 'quantidade_inspecao_geral' %}Quantidade Inspeção Final
+                            {% elif key == 'quantidade_robo' %}Quantidade Robô
+                            {% elif key == 'impressora' %}Impressora
+                            {% elif key == 'sos' %}SOS
+                            {% elif key == 'robo_alca' %}Robô Alça
+                            {% elif key == 'data' %}Data SOS
+                            {% elif key == 'data_robo' %}Data Robô
+                            {% elif key == 'inicio_acerto' %}Início Acerto SOS
+                            {% elif key == 'fim_acerto' %}Fim Acerto SOS
+                            {% elif key == 'inicio_acerto_impressora' %}Início Acerto Impressora
+                            {% elif key == 'fim_acerto_impressora' %}Fim Acerto Impressora
+                            {% elif key == 'inicio_prod' %}Início Produção SOS
+                            {% elif key == 'fim_prod' %}Fim Produção SOS
+                            {% elif key == 'inicio_prod_impressora' %}Início Produção Impressora
+                            {% elif key == 'fim_prod_impressora' %}Fim Produção Impressora
+                            {% elif key == 'refugo_producao_total' %}Refugo Produção Total (kg)
+                            {% elif key == 'refugo_robo' %}Refugo Robo (peças)
+                            {% elif key == 'refugo_inspecao_final' %}Refugo Inspeção Final (peças)
+                            {% elif key == 'refugo_robo_kg' %}Refugo Robô (kg)
+                            {% elif key == 'refugo_inspecao_final_kg' %}Refugo Inspeção Final (kg)
+                            {% elif key == 'tempo_acerto_s' %}Tempo Acerto SOS
+                            {% elif key == 'tempo_prod_s' %}Tempo Produção SOS
+                            {% elif key == 'tempo_acerto_impressora' %}Tempo Acerto Impressora
+                            {% elif key == 'tempo_prod_impressora' %}Tempo Produção Impressora
+                            {% elif key == 'velocidade_un_min' %}Velocidade SOS
+                            {% elif key == 'velocidade_un_min_flexo' %}Velocidade Impressora
+                            {% elif key == 'perdas_un' %}Refugo Produção (Peças)
+                            {% elif key == 'perdas_geral' %}Refugo Geral Peças
+                            {% elif key == 'perdas_geral_kg' %}Refugo Geral (kg)
+                            {% elif key == 'milheiro' %}Peso Milheiro
+                            {% elif key == 'refugo_pct' %}Refugo Porcentagem SOS
+                            {% elif key == 'refugo_pct_flexo' %}Refugo Porcentagem Impressora
+                            {% else %}{{ key|replace('_', ' ')|capitalize }}
+                            {% endif %}</a></th>
+                        {% endif %}
+                    {% endfor %}
+                    <th class="th-actions">Ações</th>
+                {% else %}<th>Nenhum dado para exibir</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for lancamento in lancamentos %}
+                <tr>
+                    {% set sticky_left_cols = ['num_of', 'servico'] %}
+                    {% for key in column_order %}
+                        {% if key in lancamento %}
+                        <td {% if key in sticky_left_cols %}class="sticky-left" data-column="{{ key }}"{% endif %}>
+                            {% if key in ['data', 'data_impressora', 'data_inspecao', 'data_robo'] and lancamento[key] is not none %}
+                                {% set parts = lancamento[key].split('-') %}
+                                {{ "%s/%s/%s"|format(parts[2], parts[1], parts[0]) }}                            
+                            {% elif key in ['refugo_pct', 'refugo_pct_flexo', 'eficiencia_pct'] and lancamento[key] is not none %}
+                                {{ "%.2f"|format(lancamento[key]|float) }}%
+                            {% elif key in ['velocidade_un_min', 'velocidade_un_min_flexo', 'perdas_un', 'perdas_geral', 'perdas_geral_kg', 'milheiro', 'refugo_producao_total', 'refugo_flexo', 'refugo_pre_impresso', 'refugo_sos', 'refugo_robo', 'refugo_inspecao_final', 'refugo_robo_kg', 'refugo_inspecao_final_kg', 'refugo_acerto_flexo', 'refugo_acerto_sos', 'consumo_util', 'consumo_total'] and lancamento[key] is not none %}
+                                {{ "%.2f"|format(lancamento[key]|float) }}
+                            {% elif key in ['tempo_prod_s', 'tempo_acerto_s', 'tempo_prod_impressora', 'tempo_acerto_impressora'] and lancamento[key] is not none %}
+                                {% set total_seconds = lancamento[key]|int %}
+                                {% set hours = (total_seconds // 3600) %}
+                                {% set minutes = ((total_seconds % 3600) // 60) %}
+                                {% set secs = (total_seconds % 60) %}
+                                {{ "%02d:%02d:%02d"|format(hours, minutes, secs) }}
+                            {% else %}
+                                {{ lancamento[key] if lancamento[key] is not none else '' }}
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    {% endfor %}
+                    <td class="actions-cell">
+                        <a href="{{ url_for('main.editar', id=lancamento.id) }}" class="btn-acao btn-editar" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></a>
+                        <form action="{{ url_for('main.excluir', id=lancamento.id) }}" method="post" onsubmit="return confirm('Tem certeza?');" style="display:inline;"><button type="submit" class="btn-acao btn-excluir" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="26">Nenhum registro encontrado.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+  </div>
+  <script>
+    // Calcula a posição left das colunas fixadas à esquerda
+    document.addEventListener('DOMContentLoaded', function() {
+        const table = document.querySelector('.tabela');
+        if (table) {
+            const thead = table.querySelector('thead tr');
+            if (thead) {
+                const headers = Array.from(thead.querySelectorAll('th'));
+                let numOfIndex = -1;
+                let servicoIndex = -1;
+                
+                // Encontra os índices das colunas fixadas
+                headers.forEach((th, index) => {
+                    const col = th.getAttribute('data-column');
+                    if (col === 'num_of') numOfIndex = index;
+                    if (col === 'servico') servicoIndex = index;
+                });
+                
+                // Calcula e aplica posição para num_of
+                if (numOfIndex >= 0) {
+                    let leftPosition = 0;
+                    for (let i = 0; i < numOfIndex; i++) {
+                        const th = headers[i];
+                        if (th) {
+                            const rect = th.getBoundingClientRect();
+                            leftPosition += rect.width;
+                        }
+                    }
+                    const numOfCells = table.querySelectorAll('th[data-column="num_of"].sticky-left, td.sticky-left[data-column="num_of"]');
+                    numOfCells.forEach(cell => {
+                        cell.style.left = leftPosition + 'px';
+                    });
+                }
+                
+                // Calcula e aplica posição para servico
+                if (servicoIndex >= 0) {
+                    let leftPosition = 0;
+                    for (let i = 0; i < servicoIndex; i++) {
+                        const th = headers[i];
+                        if (th) {
+                            const rect = th.getBoundingClientRect();
+                            leftPosition += rect.width;
+                        }
+                    }
+                    const servicoCells = table.querySelectorAll('th[data-column="servico"].sticky-left, td.sticky-left[data-column="servico"]');
+                    servicoCells.forEach(cell => {
+                        cell.style.left = leftPosition + 'px';
+                    });
+                }
+            }
+        }
+    });
+  </script>
+</body>
+</html> 
