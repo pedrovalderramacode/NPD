@@ -186,7 +186,7 @@
                         {% set header_title = none %}
                         {% if key == 'refugo_robo_kg' %}{% set header_title = 'Cálculo: Refugo Robô (peças) × (Peso Milheiro ÷ 1000)' %}{% endif %}
                         {% if key == 'refugo_inspecao_final_kg' %}{% set header_title = 'Cálculo: Refugo Inspeção Final (peças) × (Peso Milheiro ÷ 1000)' %}{% endif %}
-                        {% if key == 'consumo_total' %}{% set header_title = 'Cálculo: Consumo Util + Refugo Produção Total' %}{% endif %}
+                        {% if key == 'consumo_total' %}{% set header_title = 'Cálculo: Consumo Util + Refugo Geral (kg)' %}{% endif %}
                         {% if key == 'refugo_producao_total' %}{% set header_title = 'Cálculo: Refugo Flexo + Refugo Pré-Impresso + Refugo SOS + Refugo Acerto Flexo + Refugo Acerto SOS (total em kg)' %}{% endif %}
                         {% if key == 'refugo_pct' %}{% set header_title = 'Cálculo: (Refugo SOS em kg) ÷ (Peso boas SOS + Refugo SOS) × 100' %}{% endif %}
                         {% if key == 'refugo_pct_flexo' %}{% set header_title = 'Cálculo: (Refugo Flexo em kg) ÷ (Peso boas Impressora + Refugo Flexo) × 100' %}{% endif %}

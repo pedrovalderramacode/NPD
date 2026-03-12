@@ -184,7 +184,7 @@
                         {% set header_title = none %}
                         {% if key == 'refugo_flexo_kg' %}{% set header_title = 'Cálculo: Refugo Acerto Flexo + Refugo Flexo + Refugo Pré-Impresso' %}{% endif %}
                         {% if key == 'refugo_sos_kg' %}{% set header_title = 'Cálculo: Refugo Acerto SOS + Refugo SOS' %}{% endif %}
-                        {% if key == 'consumo_total' %}{% set header_title = 'Cálculo: Consumo Util + Refugo Produção Total' %}{% endif %}
+                        {% if key == 'consumo_total' %}{% set header_title = 'Cálculo: Consumo Util + Refugo Geral (kg)' %}{% endif %}
                         {% if key == 'pct_refugo_pedido' %}{% set header_title = 'Cálculo: (Refugo Geral Peças ÷ Qtde Inspeção Final) × 100' %}{% endif %}
                         <th data-column="{{ key }}" {% if key in ['refugo_flexo_kg', 'refugo_sos_kg', 'consumo_total'] %}data-header-color="orange"{% endif %} {% if key == 'pct_refugo_pedido' %}data-header-color="green"{% endif %} {% if key in sticky_left_cols %}class="sticky-left"{% endif %}{% if header_title %} title="{{ header_title }}"{% endif %}><a href="{{ url_for('main.of_refugo', sort_by=key, sort_order='desc' if request.args.get('sort_by') == key and request.args.get('sort_order') == 'asc' else 'asc', **preserved_args) }}"{% if header_title %} title="{{ header_title }}"{% endif %}>
                             {% if key == 'num_of' %}Nº OF

@@ -92,6 +92,7 @@ def lancar():
         
         # Calcula métricas de produção
         metricas = calcular_metricas_producao(request.form)
+        perdas_geral_kg = metricas["perdas_total_kg"]
         # Calcula o refugo total como soma das 5 colunas de refugo
         refugo_flexo = safe_get_float(request.form, "refugo_flexo", 0.0)
         refugo_pre_impresso = safe_get_float(request.form, "refugo_pre_impresso", 0.0)
@@ -100,13 +101,14 @@ def lancar():
         refugo_acerto_sos = safe_get_float(request.form, "refugo_acerto_sos", 0.0)
         refugo_total = refugo_flexo + refugo_pre_impresso + refugo_sos + refugo_acerto_flexo + refugo_acerto_sos
         
-        # Calcula o consumo útil
+        # Calcula o consumo útil (usa Quantidade Inspeção Final)
         quantidade = safe_get_float(request.form, "quantidade", 0.0)
+        quantidade_inspecao_geral = safe_get_float(request.form, "quantidade_inspecao_geral", 0.0)
         milheiro = safe_get_float(request.form, "milheiro", 0.0)
-        consumo_util = (quantidade / 1000.0) * milheiro
+        consumo_util = (quantidade_inspecao_geral / 1000.0) * milheiro
         
-        # Calcula o consumo total
-        consumo_total = consumo_util + refugo_total
+        # Calcula o consumo total (Consumo Util + Refugo Geral kg)
+        consumo_total = consumo_util + perdas_geral_kg
         
         # Calcula tempo de acerto impressora
         tempo_acerto_impressora = 0
@@ -243,20 +245,21 @@ def editar(id):
             refugo_acerto_sos = safe_get_float(request.form, "refugo_acerto_sos", 0.0)
             refugo_total = refugo_flexo + refugo_pre_impresso + refugo_sos + refugo_acerto_flexo + refugo_acerto_sos
             
-            # Calcula o consumo útil
+            # Calcula o consumo útil (usa Quantidade Inspeção Final)
             quantidade = safe_get_float(request.form, "quantidade", 0.0)
+            quantidade_inspecao_geral = safe_get_float(request.form, "quantidade_inspecao_geral", 0.0)
             milheiro = safe_get_float(request.form, "milheiro", 0.0)
-            consumo_util = (quantidade / 1000.0) * milheiro
+            consumo_util = (quantidade_inspecao_geral / 1000.0) * milheiro
             
-            # Calcula o consumo total
-            consumo_total = consumo_util + refugo_total
+            perdas_geral_kg = metricas["perdas_total_kg"]
+            refugo_robo_kg = metricas["refugo_robo_kg"]
+            # Calcula o consumo total (Consumo Util + Refugo Geral kg)
+            consumo_total = consumo_util + perdas_geral_kg
             
             # Calcula perdas geral (soma de perdas_un + refugo_robo + refugo_inspecao_final)
             refugo_robo = safe_get_float(request.form, "refugo_robo", 0.0)
             refugo_inspecao_final = safe_get_float(request.form, "refugo_inspecao_final", 0.0)
             perdas_geral = metricas["perdas_un"] + refugo_robo + refugo_inspecao_final
-            perdas_geral_kg = metricas["perdas_total_kg"]
-            refugo_robo_kg = metricas["refugo_robo_kg"]
             refugo_inspecao_final_kg = metricas["refugo_inspecao_final_kg"]
             
             # Calcula tempo de acerto impressora
@@ -392,17 +395,17 @@ def historico():
     
     # Garantir que todos os registros tenham as colunas calculadas
     for lancamento in lancamentos:
-        # Calcular consumo_util se necessário
+        # Calcular consumo_util se necessário (usa Quantidade Inspeção Final)
         if 'consumo_util' not in lancamento or lancamento['consumo_util'] is None or lancamento['consumo_util'] == 0:
-            quantidade = lancamento.get('quantidade', 0) or 0
+            quantidade_inspecao_final = lancamento.get('quantidade_inspecao_geral', 0) or 0
             milheiro = lancamento.get('milheiro', 0) or 0
-            lancamento['consumo_util'] = (quantidade / 1000.0) * milheiro
+            lancamento['consumo_util'] = (quantidade_inspecao_final / 1000.0) * milheiro
         
-        # Calcular consumo_total se necessário
+        # Calcular consumo_total se necessário (Consumo Util + Refugo Geral kg)
         if 'consumo_total' not in lancamento or lancamento['consumo_total'] is None or lancamento['consumo_total'] == 0:
             consumo_util = lancamento.get('consumo_util', 0) or 0
-            refugo = lancamento.get('refugo_producao_total', 0) or 0
-            lancamento['consumo_total'] = consumo_util + refugo
+            perdas_geral_kg = float(lancamento.get('perdas_geral_kg', 0) or 0)
+            lancamento['consumo_total'] = consumo_util + perdas_geral_kg
     preserved_args = args.copy()
     preserved_args.pop('sort_by', None); preserved_args.pop('sort_order', None)
     # Exportação para Excel
@@ -711,16 +714,17 @@ def of_refugo():
             refugo_sos = float(lancamento.get('refugo_sos', 0) or 0)
             lancamento['refugo_sos_kg'] = refugo_acerto_sos + refugo_sos
             
-            # Calcular consumo_total se necessário
+            # Calcular consumo_total se necessário (Consumo Util + Refugo Geral kg)
             if 'consumo_total' not in lancamento or lancamento['consumo_total'] is None or lancamento['consumo_total'] == 0:
                 consumo_util = lancamento.get('consumo_util', 0) or 0
-                refugo = lancamento.get('refugo_producao_total', 0) or 0
-                lancamento['consumo_total'] = consumo_util + refugo
+                perdas_geral_kg = float(lancamento.get('perdas_geral_kg', 0) or 0)
+                lancamento['consumo_total'] = consumo_util + perdas_geral_kg
             
-            # Porcentagem de Refugo Pedido = (Refugo Geral Peças / Qtde Inspeção Final) × 100
+            # Porcentagem de Refugo Pedido = Refugo Geral Peças / (Qtde Inspeção Final + Refugo Geral Peças) × 100
             qtd_inspecao = float(lancamento.get('quantidade_inspecao_geral', 0) or 0)
             perdas_geral_val = float(lancamento.get('perdas_geral', 0) or 0)
-            lancamento['pct_refugo_pedido'] = (perdas_geral_val / qtd_inspecao * 100) if qtd_inspecao > 0 else None
+            denominador = qtd_inspecao + perdas_geral_val
+            lancamento['pct_refugo_pedido'] = (perdas_geral_val / denominador * 100) if denominador > 0 else None
     
     preserved_args = request.args.to_dict()
     preserved_args.pop('sort_by', None)
