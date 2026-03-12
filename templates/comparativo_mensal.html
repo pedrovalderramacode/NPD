@@ -22,6 +22,7 @@
     .tabela-mensal tbody tr:nth-child(odd) td { background: #f5f5f5; }
     .tabela-mensal tbody tr:nth-child(even) td { background: #fff; }
     .tabela-mensal tbody tr.total-geral td { font-weight: bold; background: #fff !important; border-top: 2px solid #1a2b3c; }
+    .tabela-mensal td.text-right, .tabela-mensal th.text-right { text-align: right; }
     .chart-container { margin: 30px 0; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .chart-container img { width: 100%; height: auto; display: block; }
   </style>
@@ -152,6 +153,36 @@
               <td>{{ total_refugo_producao_total_kg_fmt }}</td>
               <td>{{ total_pct_producao_sos_fmt }}</td>
               <td>{{ total_pct_producao_pre_impresso_fmt }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3 style="margin-top: 30px; margin-bottom: 15px;">Consumo Total por Tipo de Papel</h3>
+        <table class="tabela-mensal">
+          <thead>
+            <tr>
+              <th>Meses</th>
+              {% for p in papeis_ordenados %}
+              <th class="text-right">{{ p }}</th>
+              {% endfor %}
+              <th class="text-right">Consumo Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows_consumo_papel %}
+            <tr>
+              <td>{{ r.mes_nome }}</td>
+              {% for p in papeis_ordenados %}
+              <td class="text-right">{{ r.consumo_por_papel_fmt.get(p, '—') }}</td>
+              {% endfor %}
+              <td class="text-right">{{ r.consumo_total_mes_fmt }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="total-geral">
+              <td>Total Geral</td>
+              {% for p in papeis_ordenados %}
+              <td class="text-right">{{ totais_consumo_papel_fmt.get(p, '—') }}</td>
+              {% endfor %}
+              <td class="text-right">{{ total_geral_papel_fmt }}</td>
             </tr>
           </tbody>
         </table>

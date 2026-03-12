@@ -988,7 +988,7 @@ def comparacao_quantidade():
 def comparativo_mensal():
     from datetime import datetime
     conn = get_db_connection()
-    df = pd.read_sql_query("SELECT id, data, quantidade, quantidade_impressora, milheiro, refugo_acerto_sos, refugo_pre_impresso, refugo_sos, refugo_producao_total, refugo_pct, tipo_impressao, consumo_total FROM producao", conn)
+    df = pd.read_sql_query("SELECT id, data, quantidade, quantidade_impressora, milheiro, refugo_acerto_sos, refugo_pre_impresso, refugo_sos, refugo_producao_total, refugo_pct, tipo_impressao, consumo_total, papel FROM producao", conn)
     
     # Processar salvamento de metas mensais (POST)
     if request.method == "POST":
@@ -1241,6 +1241,48 @@ def comparativo_mensal():
         r["pct_producao_sos_fmt"] = f"{r['pct_producao_sos']:.2f}".replace(".", ",") + "%" if r.get("pct_producao_sos") is not None else "—"
         r["pct_producao_pre_impresso_fmt"] = f"{r['pct_producao_pre_impresso']:.2f}".replace(".", ",") + "%" if r.get("pct_producao_pre_impresso") is not None else "—"
     
+    # Consumo Total por Tipo de Papel (agrupamento do Consumo Total por coluna Papel)
+    papeis_ordenados = []
+    rows_consumo_papel = []
+    totais_consumo_papel = {}
+    if not df.empty and "papel" in df.columns and "consumo_total" in df.columns and ano_used is not None:
+        df["papel"] = df["papel"].fillna("Não informado").astype(str).str.strip()
+        papeis_ordenados = sorted(df["papel"].unique().tolist())
+        totais_consumo_papel = {p: 0.0 for p in papeis_ordenados}
+        for mes in range(1, 13):
+            dm = df[(df["ano"] == ano_used) & (df["mes"] == mes)]
+            consumo_por_papel = {}
+            for p in papeis_ordenados:
+                val = dm[dm["papel"] == p]["consumo_total"].fillna(0).sum() if not dm.empty else 0.0
+                consumo_por_papel[p] = val
+                totais_consumo_papel[p] = totais_consumo_papel.get(p, 0) + val
+            total_mes = sum(consumo_por_papel.values())
+            rows_consumo_papel.append({
+                "mes_num": mes,
+                "mes_nome": MESES_NOME[mes - 1],
+                "consumo_por_papel": consumo_por_papel,
+                "consumo_total_mes": total_mes,
+            })
+        # Formatar valores para exibição
+        for r in rows_consumo_papel:
+            r["consumo_por_papel_fmt"] = {p: f"{r['consumo_por_papel'][p]:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if r["consumo_por_papel"][p] > 0 else "—" for p in papeis_ordenados}
+            r["consumo_total_mes_fmt"] = f"{r['consumo_total_mes']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if r["consumo_total_mes"] > 0 else "—"
+        totais_consumo_papel_fmt = {p: f"{totais_consumo_papel[p]:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if totais_consumo_papel.get(p, 0) > 0 else "—" for p in papeis_ordenados}
+        total_geral_papel = sum(totais_consumo_papel.values())
+        total_geral_papel_fmt = f"{total_geral_papel:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if total_geral_papel > 0 else "—"
+    else:
+        for mes in range(1, 13):
+            rows_consumo_papel.append({
+                "mes_num": mes,
+                "mes_nome": MESES_NOME[mes - 1],
+                "consumo_por_papel": {},
+                "consumo_por_papel_fmt": {},
+                "consumo_total_mes": 0,
+                "consumo_total_mes_fmt": "—",
+            })
+        totais_consumo_papel_fmt = {}
+        total_geral_papel_fmt = "—"
+    
     # Totais da segunda tabela
     total_consumo_total = sum(r["consumo_total"] for r in rows_producao_tipo)
     total_refugo_producao_total_kg = sum(r["refugo_producao_total_kg"] for r in rows_producao_tipo)
@@ -1292,6 +1334,10 @@ def comparativo_mensal():
         total_refugo_producao_total_kg_fmt=total_refugo_producao_total_kg_fmt,
         total_pct_producao_sos_fmt=total_pct_producao_sos_fmt,
         total_pct_producao_pre_impresso_fmt=total_pct_producao_pre_impresso_fmt,
+        papeis_ordenados=papeis_ordenados,
+        rows_consumo_papel=rows_consumo_papel,
+        totais_consumo_papel_fmt=totais_consumo_papel_fmt,
+        total_geral_papel_fmt=total_geral_papel_fmt,
         anos_disponiveis=anos_disponiveis,
         ano_selecionado=ano_selecionado,
         action_url=url_for("main.comparativo_mensal"),
@@ -1396,7 +1442,25 @@ def analise():
         if selected_operator_impressora_operadores:
             df_operator_impressora_analysis = df_operator_impressora_analysis[df_operator_impressora_analysis['operador_impressora'].isin(selected_operator_impressora_operadores)]
     
+    # DataFrame específico para Análise Robô (com filtros: Serviço, Nº OF, Data Robô, Operador)
+    df_robo_analysis = df_all.copy() if not df_all.empty else pd.DataFrame()
+    if not df_robo_analysis.empty:
+        robo_servico = request.args.get('robo_servico', '').strip()
+        if robo_servico:
+            df_robo_analysis = df_robo_analysis[df_robo_analysis['servico'].str.contains(robo_servico, case=False, na=False)]
+        robo_num_of = request.args.get('robo_num_of', '').strip()
+        if robo_num_of:
+            df_robo_analysis = df_robo_analysis[df_robo_analysis['num_of'].str.contains(robo_num_of, case=False, na=False)]
+        robo_start_date_robo = request.args.get('robo_start_date_robo')
+        robo_end_date_robo = request.args.get('robo_end_date_robo')
+        if robo_start_date_robo and robo_end_date_robo:
+            df_robo_analysis = df_robo_analysis[(df_robo_analysis['data_robo'] >= robo_start_date_robo) & (df_robo_analysis['data_robo'] <= robo_end_date_robo)]
+        selected_robo_operadores = request.args.getlist('robo_operadores')
+        if selected_robo_operadores:
+            df_robo_analysis = df_robo_analysis[df_robo_analysis['operador_robo'].isin(selected_robo_operadores)]
+    
     machine_summary, operator_summary, machine_total, operator_total, operator_impressora_summary, operator_impressora_total = [None] * 6
+    robo_summary, robo_total = None, None
     
     # Função auxiliar para formatar segundos (definida aqui para uso em todas as análises)
     def format_seconds(seconds):
@@ -1505,8 +1569,51 @@ def analise():
             }
             impressora_summary = impressora_summary.to_dict('records')
         
+        # Análise Robô - usa df_robo_analysis (com filtros: Serviço, Nº OF, Data Robô, Operador)
+        df_robo = df_robo_analysis[(df_robo_analysis['robo_alca'].notna()) & (df_robo_analysis['robo_alca'].astype(str).str.strip() != '')] if not df_robo_analysis.empty else pd.DataFrame()
+        if not df_robo.empty:
+            robo_summary = df_robo.groupby('robo_alca').agg(
+                contagem_servico=('id', 'count'),
+                refugo_pecas=('refugo_robo', 'sum'),
+                soma_quantidade_robo=('quantidade_robo', 'sum')
+            ).reset_index()
+            robo_summary = robo_summary.rename(columns={'robo_alca': 'robo'})
+            robo_total = {
+                'robo': 'Total Geral',
+                'contagem_servico': int(df_robo['id'].count()),
+                'refugo_pecas': float(df_robo['refugo_robo'].sum()) if 'refugo_robo' in df_robo.columns else 0,
+                'soma_quantidade_robo': float(df_robo['quantidade_robo'].sum()) if 'quantidade_robo' in df_robo.columns else 0,
+            }
+            robo_summary = robo_summary.to_dict('records')
+        else:
+            robo_summary = []
+            robo_total = None
+        
         machine_summary = machine_summary.to_dict('records') if machine_summary is not None else []
         operator_summary = operator_summary.to_dict('records') if operator_summary is not None else []
+    
+    # Garantir robo_summary/robo_total quando df_sos_analysis está vazio (ex.: só filtros Robô)
+    if robo_summary is None and not df_robo_analysis.empty:
+        df_robo = df_robo_analysis[(df_robo_analysis['robo_alca'].notna()) & (df_robo_analysis['robo_alca'].astype(str).str.strip() != '')] if not df_robo_analysis.empty else pd.DataFrame()
+        if not df_robo.empty:
+            robo_summary = df_robo.groupby('robo_alca').agg(
+                contagem_servico=('id', 'count'),
+                refugo_pecas=('refugo_robo', 'sum'),
+                soma_quantidade_robo=('quantidade_robo', 'sum')
+            ).reset_index()
+            robo_summary = robo_summary.rename(columns={'robo_alca': 'robo'})
+            robo_total = {
+                'robo': 'Total Geral',
+                'contagem_servico': int(df_robo['id'].count()),
+                'refugo_pecas': float(df_robo['refugo_robo'].sum()) if 'refugo_robo' in df_robo.columns else 0,
+                'soma_quantidade_robo': float(df_robo['quantidade_robo'].sum()) if 'quantidade_robo' in df_robo.columns else 0,
+            }
+            robo_summary = robo_summary.to_dict('records')
+        else:
+            robo_summary = []
+            robo_total = None
+    if robo_summary is None:
+        robo_summary = []
     
     # Função auxiliar para formatar segundos (definida aqui para uso em todas as análises)
     def format_seconds(seconds):
@@ -1565,4 +1672,4 @@ def analise():
         operator_impressora_summary = []
         operator_impressora_total = None
     
-    return render_template('analise.html', machine_summary=machine_summary, operator_summary=operator_summary, machine_total=machine_total, operator_total=operator_total, impressora_summary=impressora_summary, impressora_total=impressora_total, operator_impressora_summary=operator_impressora_summary, operator_impressora_total=operator_impressora_total, all_operadores=ALL_OPERADORES, all_operadores_sos=OPERADORES_SOS, operadores_impressora=OPERADORES_IMPRESSORA, operadores_sos=OPERADORES_SOS, action_url=url_for('main.analise')) 
+    return render_template('analise.html', machine_summary=machine_summary, operator_summary=operator_summary, machine_total=machine_total, operator_total=operator_total, impressora_summary=impressora_summary, impressora_total=impressora_total, robo_summary=robo_summary, robo_total=robo_total, operator_impressora_summary=operator_impressora_summary, operator_impressora_total=operator_impressora_total, all_operadores=ALL_OPERADORES, all_operadores_sos=OPERADORES_SOS, operadores_impressora=OPERADORES_IMPRESSORA, operadores_robo=OPERADORES_ROBO, operadores_sos=OPERADORES_SOS, action_url=url_for('main.analise')) 
