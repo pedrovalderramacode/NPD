@@ -156,6 +156,46 @@
             </tr>
           </tbody>
         </table>
+        <h3 style="margin-top: 30px; margin-bottom: 15px;">Consumo de Papel por Bobina</h3>
+        <table class="tabela-mensal">
+          <thead>
+            <tr>
+              <th>BOBINAS</th>
+              <th class="text-right">Largura</th>
+              {% for mes_nome in meses_nome_bobina %}
+              <th class="text-right">{{ mes_nome }}</th>
+              {% endfor %}
+              <th class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for grupo in rows_bobina %}
+            {% for lin in grupo.larguras %}
+            <tr>
+              {% if loop.first %}
+              <td rowspan="{{ grupo.larguras|length }}" style="vertical-align: middle; font-weight: 600;">{{ grupo.papel }}</td>
+              {% endif %}
+              <td class="text-right">{{ lin.largura }}</td>
+              {% for mes_num in range(1, 13) %}
+              <td class="text-right">{{ lin.consumo_por_mes_fmt[mes_num] }}</td>
+              {% endfor %}
+              <td class="text-right">{{ lin.total_fmt }}</td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+            {% if rows_bobina %}
+            <tr class="total-geral">
+              <td colspan="2">Total Geral</td>
+              {% for mes_num in range(1, 13) %}
+              <td class="text-right">{{ totais_bobina_por_mes_fmt[mes_num] }}</td>
+              {% endfor %}
+              <td class="text-right">{{ total_geral_bobina_fmt }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="15" style="text-align: center; padding: 20px;">Nenhum dado encontrado para o ano selecionado (papel + formato com largura conhecida).</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
         <h3 style="margin-top: 30px; margin-bottom: 15px;">Consumo Total por Tipo de Papel</h3>
         <table class="tabela-mensal">
           <thead>

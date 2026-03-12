@@ -17,6 +17,16 @@ IDEAL_SCRAP_RATES_SOS_PCT = {
     'BAG 70GRS': 8.0, 'COLLEY 100G': 8.0, 'ECO 70GRS': 10.0,
     'MONOL 70GRS': 10.0
 }
+# Tabela formato -> largura da bobina (cm) para Consumo de Papel por Bobina
+FORMATO_TO_LARGURA = {
+    "18X25X10": 58, "18X30X10": 58,
+    "22X30X12": 70, "22X40X12": 70, "25X30X9": 70, "25X25X9": 70,
+    "25X30X14": 80, "25X40X14": 80,
+    "27X32X17": 90, "29X40X15": 90, "32X30X12": 90, "32X40X12": 90, "32X45X12": 90,
+    "31X31X18": 99, "28X31X20": 99, "32X30X16": 99, "32X45X16": 99, "35X45X14": 99,
+    "40X45X14": 110,
+}
+
 # Lista de operadores por categoria
 OPERADORES_SOS = sorted(['JOSÉ', 'JOÃO', 'WELLINGTON', 'JULIO', 'LUCAS', 'WILLIAM', 'BETO'])
 OPERADORES_IMPRESSORA = sorted(['ILSON'])

@@ -4,7 +4,7 @@ import pandas as pd
 from io import BytesIO
 from .models import get_db_connection, inicializar_banco
 from .business import calcular_metricas_producao, get_seconds_from_time
-from .config import ALL_OPERADORES, ALL_MAQUINAS, OPERADORES_SOS, OPERADORES_IMPRESSORA, OPERADORES_ROBO
+from .config import ALL_OPERADORES, ALL_MAQUINAS, OPERADORES_SOS, OPERADORES_IMPRESSORA, OPERADORES_ROBO, FORMATO_TO_LARGURA
 from .charts import *
 
 # Função auxiliar para tratar valores vazios
@@ -988,7 +988,7 @@ def comparacao_quantidade():
 def comparativo_mensal():
     from datetime import datetime
     conn = get_db_connection()
-    df = pd.read_sql_query("SELECT id, data, quantidade, quantidade_impressora, milheiro, refugo_acerto_sos, refugo_pre_impresso, refugo_sos, refugo_producao_total, refugo_pct, tipo_impressao, consumo_total, papel FROM producao", conn)
+    df = pd.read_sql_query("SELECT id, data, quantidade, quantidade_impressora, milheiro, refugo_acerto_sos, refugo_pre_impresso, refugo_sos, refugo_producao_total, refugo_pct, tipo_impressao, consumo_total, papel, formato FROM producao", conn)
     
     # Processar salvamento de metas mensais (POST)
     if request.method == "POST":
@@ -1283,6 +1283,56 @@ def comparativo_mensal():
         totais_consumo_papel_fmt = {}
         total_geral_papel_fmt = "—"
     
+    # Consumo de Papel por Bobina: agrupar por Papel (gramatura) e por largura (via coluna formato)
+    LARGURAS_ORDER = [58, 70, 80, 90, 99, 110]
+    PAPEIS_BOBINA_ORDER = ["BAG 100GRS", "BAG 70GRS", "BAG 80GRS", "BRANCO 110GRS"]
+    rows_bobina = []
+    totais_bobina_por_mes = {mes: 0.0 for mes in range(1, 13)}
+    total_geral_bobina = 0.0
+    if not df.empty and ano_used is not None and "papel" in df.columns and "formato" in df.columns and "consumo_total" in df.columns:
+        df_b = df[df["ano"] == ano_used].copy()
+        df_b["papel"] = df_b["papel"].fillna("").astype(str).str.strip()
+        df_b["formato"] = df_b["formato"].fillna("").astype(str).str.strip().str.upper()
+        df_b["largura"] = df_b["formato"].map(lambda f: FORMATO_TO_LARGURA.get(f, None))
+        df_b = df_b[df_b["largura"].notna()]
+        df_b["papel_display"] = df_b["papel"].replace({"BRANCO 110G": "BRANCO 110GRS"})
+        papeis_presentes = df_b["papel_display"].unique().tolist()
+        papeis_bobina_order = [p for p in PAPEIS_BOBINA_ORDER if p in papeis_presentes]
+        for p in papeis_presentes:
+            if p not in papeis_bobina_order:
+                papeis_bobina_order.append(p)
+        for papel in papeis_bobina_order:
+            df_p = df_b[df_b["papel_display"] == papel]
+            larguras_presentes = sorted(df_p["largura"].dropna().unique().astype(int).tolist())
+            larguras_presentes = [l for l in LARGURAS_ORDER if l in larguras_presentes]
+            if not larguras_presentes:
+                larguras_presentes = sorted(df_p["largura"].dropna().unique().astype(int).tolist())
+            linhas_papel = []
+            for largura in larguras_presentes:
+                df_pl = df_p[df_p["largura"] == largura]
+                consumo_por_mes = {}
+                total_linha = 0.0
+                for mes in range(1, 13):
+                    dm = df_pl[df_pl["mes"] == mes]
+                    val = dm["consumo_total"].fillna(0).sum() if not dm.empty else 0.0
+                    consumo_por_mes[mes] = val
+                    total_linha += val
+                    totais_bobina_por_mes[mes] = totais_bobina_por_mes.get(mes, 0) + val
+                total_geral_bobina += total_linha
+                consumo_por_mes_fmt = {mes: f"{consumo_por_mes[mes]:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if consumo_por_mes[mes] > 0 else "—" for mes in range(1, 13)}
+                total_linha_fmt = f"{total_linha:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if total_linha > 0 else "—"
+                linhas_papel.append({
+                    "largura": largura,
+                    "consumo_por_mes": consumo_por_mes,
+                    "consumo_por_mes_fmt": consumo_por_mes_fmt,
+                    "total": total_linha,
+                    "total_fmt": total_linha_fmt,
+                })
+            rows_bobina.append({"papel": papel, "larguras": linhas_papel})
+    totais_bobina_por_mes_fmt = {mes: f"{totais_bobina_por_mes[mes]:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if totais_bobina_por_mes.get(mes, 0) > 0 else "—" for mes in range(1, 13)}
+    total_geral_bobina_fmt = f"{total_geral_bobina:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if total_geral_bobina > 0 else "—"
+    MESES_NOME_BOBINA = ("JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO")
+    
     # Totais da segunda tabela
     total_consumo_total = sum(r["consumo_total"] for r in rows_producao_tipo)
     total_refugo_producao_total_kg = sum(r["refugo_producao_total_kg"] for r in rows_producao_tipo)
@@ -1338,6 +1388,10 @@ def comparativo_mensal():
         rows_consumo_papel=rows_consumo_papel,
         totais_consumo_papel_fmt=totais_consumo_papel_fmt,
         total_geral_papel_fmt=total_geral_papel_fmt,
+        rows_bobina=rows_bobina,
+        totais_bobina_por_mes_fmt=totais_bobina_por_mes_fmt,
+        total_geral_bobina_fmt=total_geral_bobina_fmt,
+        meses_nome_bobina=MESES_NOME_BOBINA,
         anos_disponiveis=anos_disponiveis,
         ano_selecionado=ano_selecionado,
         action_url=url_for("main.comparativo_mensal"),
